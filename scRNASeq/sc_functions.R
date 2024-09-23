@@ -127,4 +127,24 @@ integrate_sce_2 <- function(x, y) {
   return(combined)
 }
 
+get_cluster_colors <- function(sce, clust_name = "seurat_clusters"){
+  sce@meta.data |>
+    pull(get(clust_name)) |>
+    unique() -> clusters
+
+  max_cols <- brewer.pal.info["Paired", ]$maxcolors
+
+  req_colors <- length(clusters)
+
+  if(req_colors > max_colors){
+    use_cols <- colorRampPalette(rev(brewer.pal(max_cols, "Paired")))(req_colors)
+  }
+
+  if(req_colors < max_colors){
+    use_cols <- rev(brewer.pal(req_colors, "Paired"))
+  }
+
+  names(use_cols) <- clusters 
+  use_cols
+}
 # make_phate <-
