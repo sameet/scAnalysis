@@ -20,29 +20,29 @@ process_h5 <- function(fn, p_name) {
   sce[["percent.mito"]] <- PercentageFeatureSet(sce, pattern = "^MT-")
 
   # plot QC
-  p <- VlnPlot(
-    sce,
-    features = c("nFeature_RNA", "nCount_RNA", "percent.mito"),
-    ncol = 3
-  )
-  ggsave(
-    file.path(of_dir, "voilin_plot_QC.pdf"),
-    plot = p,
-    width = 14,
-    height = 7,
-    units = "in"
-  )
+  # p <- VlnPlot(
+  #   sce,
+  #   features = c("nFeature_RNA", "nCount_RNA", "percent.mito"),
+  #   ncol = 3
+  # )
+  # ggsave(
+  #   file.path(of_dir, "voilin_plot_QC.pdf"),
+  #   plot = p,
+  #   width = 14,
+  #   height = 7,
+  #   units = "in"
+  # )
 
-  p2 <- FeatureScatter(sce, feature1 = "nCount_RNA", feature2 = "percent.mito")
-  p3 <- FeatureScatter(sce, feature1 = "nCount_RNA", feature2 = "nFeature_RNA")
-  p4 <- p2 + p3 + plot_layout(guides = "collect")
-  ggsave(
-    file.path(of_dir, "qc-plot-2.pdf"),
-    plot = p4,
-    width = 14,
-    height = 7,
-    units = "in"
-  )
+  # p2 <- FeatureScatter(sce, feature1 = "nCount_RNA", feature2 = "percent.mito")
+  # p3 <- FeatureScatter(sce, feature1 = "nCount_RNA", feature2 = "nFeature_RNA")
+  # p4 <- p2 + p3 + plot_layout(guides = "collect")
+  # ggsave(
+  #   file.path(of_dir, "qc-plot-2.pdf"),
+  #   plot = p4,
+  #   width = 14,
+  #   height = 7,
+  #   units = "in"
+  # )
 
   sce <- SCTransform(
     sce,
