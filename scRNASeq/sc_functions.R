@@ -2,11 +2,19 @@
 # The visualizations are a bit customized and the custom code will be held here.
 # I will add this to a Git repo so we can use the same code on all of my analysis platforms.
 
-suppressPackageStartupMessages(library(Seurat))
-suppressPackageStartupMessages(library(tidyverse))
-suppressPackageStartupMessages(library(patchwork))
-suppressPackageStartupMessages(library(pheatmap))
-suppressPackageStartupMessages(library(glmGamPoi))
+# suppressPackageStartupMessages(library(Seurat))
+# suppressPackageStartupMessages(library(tidyverse))
+# suppressPackageStartupMessages(library(patchwork))
+# suppressPackageStartupMessages(library(pheatmap))
+# suppressPackageStartupMessages(library(glmGamPoi))
+suppressPackageStartupMessages({
+  library(Seurat)
+  library(tidyverse)
+  library(pheatmap)
+  library(patchwork)
+  library(glmGamPoi)
+  library(harmony)
+})
 
 process_h5 <- function(fn, p_name) {
   of_dir <- make_opdir(p_name)
@@ -198,3 +206,29 @@ get_cluster_colors <- function(sce, clust_name = "seurat_clusters") {
   use_cols
 }
 # make_phate <-
+
+merge_harmony <- function(sce_list) {
+  sce_merge <- merge(
+    sce_list[[1]],
+    y = sce_list[2:length(sce_list)],
+    add.cell.ids = TRUE
+  )
+  sce_merge <- FindVariableFeatures(
+    sce_merge,
+    selection.method = "vst",
+    nfeatures = 2000
+  )
+  sce_merge <- ScaleData(sce_merge)
+  sce_merge <- RunPCA(sce_merge, npcs = 50)
+  # Run Harmony to merge the samples
+
+  sce_merge <- RunHarmony(
+    sce_merge,
+    group.by.vars = "orig.ident",
+    # reduction = "pca",
+    assay.use = "SCT",
+    project.dims = TRUE,
+    ncores = 8
+  )
+  sce_merge
+}
