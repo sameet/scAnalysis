@@ -205,6 +205,66 @@ get_cluster_colors <- function(sce, clust_name = "seurat_clusters") {
   names(use_cols) <- clusters
   use_cols
 }
+
+#' Map ENSEMBL IDs to Gene Symbols in a Seurat Object
+#'
+#' @param seurat_obj A Seurat object with ENSEMBL IDs as rownames.
+#' @param species_db An AnnotationDb object (e.g., org.Hs.eg.db).
+#' @return A new Seurat object with Gene Symbols as rownames, summed counts for duplicates.
+map_ensembl_to_symbol <- function(seurat_obj, species_db = org.Hs.eg.db) {
+  suppressPackageStartupMessages({
+    library(Matrix)
+    library(AnnotationDbi)
+  })
+
+  message("Mapping ENSEMBL IDs to Gene Symbols...")
+  
+  # Get counts (works for V5 and earlier)
+  counts <- GetAssayData(seurat_obj, assay = "RNA", layer = "counts")
+  ensembl_ids <- rownames(counts)
+
+  # Map IDs
+  mapping <- AnnotationDbi::select(species_db, keys = ensembl_ids, columns = "SYMBOL", keytype = "ENSEMBL")
+  
+  # Remove NAs
+  mapping <- mapping[!is.na(mapping$SYMBOL), ]
+  
+  # Filter to ensembl IDs that are in the counts
+  mapping <- mapping[mapping$ENSEMBL %in% ensembl_ids, ]
+  
+  if (nrow(mapping) == 0) {
+    stop("No ENSEMBL IDs could be mapped to Symbols.")
+  }
+
+  # If one ENSEMBL maps to many Symbols (rare), pick the first one to avoid duplicating counts
+  mapping <- mapping[!duplicated(mapping$ENSEMBL), ]
+  
+  message(paste0("Mapped ", nrow(mapping), " ENSEMBL IDs to ", length(unique(mapping$SYMBOL)), " unique Symbols."))
+
+  # Subset counts to those that were mapped
+  counts_subset <- counts[mapping$ENSEMBL, ]
+  
+  # Aggregate by Symbol using sparse matrix multiplication for efficiency
+  unique_symbols <- unique(mapping$SYMBOL)
+  mapping$SYMBOL <- factor(mapping$SYMBOL, levels = unique_symbols)
+  
+  # Create a grouping matrix G: Rows = Symbols, Cols = Ensembl IDs
+  i_idx <- as.numeric(mapping$SYMBOL)
+  j_idx <- 1:nrow(mapping)
+  
+  G <- sparseMatrix(i = i_idx, j = j_idx, x = 1, 
+                    dims = c(length(unique_symbols), nrow(mapping)))
+  
+  summed_counts <- G %*% counts_subset
+  rownames(summed_counts) <- unique_symbols
+  colnames(summed_counts) <- colnames(counts_subset)
+  
+  # Create new Seurat object
+  # Transfer metadata
+  new_seurat <- CreateSeuratObject(counts = summed_counts, meta.data = seurat_obj[[]], project = Project(seurat_obj))
+  
+  return(new_seurat)
+}
 # make_phate <-
 
 merge_harmony <- function(sce_list) {
