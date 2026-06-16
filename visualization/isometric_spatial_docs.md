@@ -91,7 +91,9 @@ list(
 ```
 
 > [!IMPORTANT]
-> **SpatialCellChat Prerequisite**: Before plotting a `cellchat` layer, the `SpatialCellChat` analysis pipeline must have already been run on the object. This includes calling the communication probability calculation and the spatial communication field computation (`computeCommunField()`) for the specific `pathway` you wish to plot. Attempting to plot a pathway that has not been pre-computed in the `SpatialCellChat` object will cause the function to halt with an error.
+> **SpatialCellChat Prerequisite & Robust Handling**: Before plotting a `cellchat` layer, standard `SpatialCellChat` cell-cell communication probability calculation must have been run on the object.
+> - **On-the-Fly Field Computation**: If the spatial communication field for the requested `pathway` has not yet been computed on the object, the function will automatically attempt to compute it on the fly using `SpatialCellChat::computeCommunField(chat, signaling.name = pathway)`, as long as the package is available.
+> - **Error Skipping**: If the calculation fails (e.g., if the pathway is not present in the probability calculations) or the package is missing, a warning will be displayed and the invalid layer will be skipped, while the remaining valid layers will still compile and plot successfully.
 
 ---
 

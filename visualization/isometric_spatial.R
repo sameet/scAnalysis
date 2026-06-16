@@ -73,125 +73,166 @@ plot_isometric_spatial <- function(
   
   # 2. Extract Data for Each Layer
   layer_dfs <- list()
+  valid_layers <- list()
   
   for (i in seq_along(layers)) {
     lyr <- layers[[i]]
-    lyr_type <- ifelse(is.null(lyr$type), "seurat", lyr$type)
     
-    if (lyr_type == "seurat") {
-      # Resolve Seurat object
-      obj <- lyr$seurat_obj
-      if (is.null(obj)) obj <- seurat_obj
-      if (is.null(obj)) {
-        stop(paste("Layer", i, "does not have a Seurat object specified and no default was provided."))
-      }
+    df <- tryCatch({
+      lyr_type <- ifelse(is.null(lyr$type), "seurat", lyr$type)
       
-      # Extract coordinates
-      if (!is.null(image)) {
-        coords <- Seurat::GetTissueCoordinates(obj, image = image)
-      } else {
-        coords <- Seurat::GetTissueCoordinates(obj)
-      }
-      coords <- as.data.frame(coords)
-      
-      # Identify coordinate columns
-      col_names <- colnames(coords)
-      x_col <- if ("x" %in% col_names) "x" else if ("imagerow" %in% col_names) "imagerow" else "imagecol"
-      y_col <- if ("y" %in% col_names) "y" else if ("imagecol" %in% col_names) "imagecol" else "imagerow"
-      
-      # Extract feature value
-      feature <- lyr$feature
-      if (is.null(feature)) {
-        stop(paste("Layer", i, "must specify a 'feature' to plot."))
-      }
-      
-      if (feature %in% colnames(obj@meta.data)) {
-        value <- obj@meta.data[[feature]]
-        names(value) <- rownames(obj@meta.data)
-      } else {
-        assay_name <- ifelse(is.null(lyr$assay), DefaultAssay(obj), lyr$assay)
-        layer_name <- ifelse(is.null(lyr$layer), "data", lyr$layer)
-        
-        # In Seurat v5, we get assay data using GetAssayData
-        exp_data <- GetAssayData(obj, assay = assay_name, layer = layer_name)
-        if (!feature %in% rownames(exp_data)) {
-          stop(paste("Feature", feature, "not found in metadata or assay", assay_name))
+      if (lyr_type == "seurat") {
+        # Resolve Seurat object
+        obj <- lyr$seurat_obj
+        if (is.null(obj)) obj <- seurat_obj
+        if (is.null(obj)) {
+          stop(paste("Layer", i, "does not have a Seurat object specified and no default was provided."))
         }
-        value <- exp_data[feature, ]
-      }
-      
-      # Align barcodes
-      cells <- rownames(coords)
-      value <- value[cells]
-      
-      df <- data.frame(
-        cell = cells,
-        x = coords[[x_col]],
-        y = coords[[y_col]],
-        value = value,
-        stringsAsFactors = FALSE
-      )
-      
-    } else if (lyr_type == "cellchat") {
-      chat <- lyr$spatial_cellchat_obj
-      if (is.null(chat)) {
-        stop(paste("Layer", i, "is of type 'cellchat' but no 'spatial_cellchat_obj' was provided."))
-      }
-      
-      pathway <- lyr$pathway
-      pattern <- lyr$pattern
-      if (is.null(pathway) || is.null(pattern)) {
-        stop(paste("Layer", i, "is of type 'cellchat' and must specify both 'pathway' and 'pattern'."))
-      }
-      
-      # Extract field data
-      net0 <- methods::slot(chat, "netP")
-      field_array <- net0$field[[pattern]]
-      signaling_names <- dimnames(field_array)[[3]]
-      if (!(pathway %in% signaling_names)) {
-        stop(paste("Pathway", pathway, "not computed in the SpatialCellChat object's", pattern, "fields."))
-      }
-      
-      # Extract communication field vectors
-      field_use <- data.frame(field_array[, , pathway])
-      # Swapping matches SpatialCellChat::netVisual_CommunField swapping
-      dx <- field_use[, 2]
-      dy <- field_use[, 1]
-      
-      # Extract coordinates
-      coordinates_df <- as.data.frame(chat@images$coordinates)
-      col_names <- colnames(coordinates_df)
-      
-      if ("x_cent" %in% col_names && "y_cent" %in% col_names) {
-        x_vals <- coordinates_df[["x_cent"]]
-        y_vals <- coordinates_df[["y_cent"]]
-      } else if ("x" %in% col_names && "y" %in% col_names) {
-        x_vals <- coordinates_df[["x"]]
-        y_vals <- coordinates_df[["y"]]
+        
+        # Extract coordinates
+        if (!is.null(image)) {
+          coords <- Seurat::GetTissueCoordinates(obj, image = image)
+        } else {
+          coords <- Seurat::GetTissueCoordinates(obj)
+        }
+        coords <- as.data.frame(coords)
+        
+        # Identify coordinate columns
+        col_names <- colnames(coords)
+        x_col <- if ("x" %in% col_names) "x" else if ("imagerow" %in% col_names) "imagerow" else "imagecol"
+        y_col <- if ("y" %in% col_names) "y" else if ("imagecol" %in% col_names) "imagecol" else "imagerow"
+        
+        # Extract feature value
+        feature <- lyr$feature
+        if (is.null(feature)) {
+          stop(paste("Layer", i, "must specify a 'feature' to plot."))
+        }
+        
+        if (feature %in% colnames(obj@meta.data)) {
+          value <- obj@meta.data[[feature]]
+          names(value) <- rownames(obj@meta.data)
+        } else {
+          assay_name <- ifelse(is.null(lyr$assay), DefaultAssay(obj), lyr$assay)
+          layer_name <- ifelse(is.null(lyr$layer), "data", lyr$layer)
+          
+          # In Seurat v5, we get assay data using GetAssayData
+          exp_data <- GetAssayData(obj, assay = assay_name, layer = layer_name)
+          if (!feature %in% rownames(exp_data)) {
+            stop(paste("Feature", feature, "not found in metadata or assay", assay_name))
+          }
+          value <- exp_data[feature, ]
+        }
+        
+        # Align barcodes
+        cells <- rownames(coords)
+        value <- value[cells]
+        
+        data.frame(
+          cell = cells,
+          x = coords[[x_col]],
+          y = coords[[y_col]],
+          value = value,
+          stringsAsFactors = FALSE
+        )
+        
+      } else if (lyr_type == "cellchat") {
+        chat <- lyr$spatial_cellchat_obj
+        if (is.null(chat)) {
+          stop(paste("Layer", i, "is of type 'cellchat' but no 'spatial_cellchat_obj' was provided."))
+        }
+        
+        pathway <- lyr$pathway
+        pattern <- lyr$pattern
+        if (is.null(pathway) || is.null(pattern)) {
+          stop(paste("Layer", i, "is of type 'cellchat' and must specify both 'pathway' and 'pattern'."))
+        }
+        
+        # Extract field data
+        net0 <- methods::slot(chat, "netP")
+        field_array <- net0$field[[pattern]]
+        signaling_names <- if (!is.null(field_array)) dimnames(field_array)[[3]] else NULL
+        
+        # If the pathway has not been computed, try to compute it on the fly
+        if (is.null(signaling_names) || !(pathway %in% signaling_names)) {
+          if (requireNamespace("SpatialCellChat", quietly = TRUE)) {
+            message(paste("Communication field for pathway", pathway, "not found in SpatialCellChat object. Attempting to compute it on the fly..."))
+            
+            chat_updated <- tryCatch({
+              SpatialCellChat::computeCommunField(chat, signaling.name = pathway)
+            }, error = function(e) {
+              stop(paste("Could not compute communication field for pathway:", pathway, "-", e$message))
+            })
+            
+            if (!is.null(chat_updated)) {
+              chat <- chat_updated
+              # Update local references
+              net0 <- methods::slot(chat, "netP")
+              field_array <- net0$field[[pattern]]
+              signaling_names <- if (!is.null(field_array)) dimnames(field_array)[[3]] else NULL
+            }
+          } else {
+            stop("SpatialCellChat package is not available to calculate communication fields on the fly.")
+          }
+        }
+        
+        if (is.null(signaling_names) || !(pathway %in% signaling_names)) {
+          stop(paste("Pathway", pathway, "not computed in the SpatialCellChat object's", pattern, "fields."))
+        }
+        
+        # Extract communication field vectors
+        field_use <- data.frame(field_array[, , pathway])
+        # Swapping matches SpatialCellChat::netVisual_CommunField swapping
+        dx <- field_use[, 2]
+        dy <- field_use[, 1]
+        
+        # Extract coordinates
+        coordinates_df <- as.data.frame(chat@images$coordinates)
+        col_names <- colnames(coordinates_df)
+        
+        if ("x_cent" %in% col_names && "y_cent" %in% col_names) {
+          x_vals <- coordinates_df[["x_cent"]]
+          y_vals <- coordinates_df[["y_cent"]]
+        } else if ("x" %in% col_names && "y" %in% col_names) {
+          x_vals <- coordinates_df[["x"]]
+          y_vals <- coordinates_df[["y"]]
+        } else {
+          # Fallback to swapping if columns are in raw (y, x) order
+          x_vals <- coordinates_df[, 2]
+          y_vals <- coordinates_df[, 1]
+        }
+        cells <- rownames(coordinates_df)
+        labels <- chat@idents
+        
+        data.frame(
+          cell = cells,
+          x = x_vals,
+          y = y_vals,
+          dx = dx,
+          dy = dy,
+          mag = sqrt(dx^2 + dy^2),
+          value = labels,
+          stringsAsFactors = FALSE
+        )
+        
       } else {
-        # Fallback to swapping if columns are in raw (y, x) order
-        x_vals <- coordinates_df[, 2]
-        y_vals <- coordinates_df[, 1]
+        stop(paste("Unsupported layer type:", lyr_type))
       }
-      cells <- rownames(coordinates_df)
-      labels <- chat@idents
-      df <- data.frame(
-        cell = cells,
-        x = x_vals,
-        y = y_vals,
-        dx = dx,
-        dy = dy,
-        mag = sqrt(dx^2 + dy^2),
-        value = labels,
-        stringsAsFactors = FALSE
-      )
-      
-    } else {
-      stop(paste("Unsupported layer type:", lyr_type))
-    }
+    }, error = function(e) {
+      warning(paste("Layer", i, "failed to compile and will be skipped:", e$message))
+      NULL
+    })
     
-    # Store layer data
-    layer_dfs[[i]] <- df
+    if (!is.null(df)) {
+      layer_dfs[[length(layer_dfs) + 1]] <- df
+      valid_layers[[length(valid_layers) + 1]] <- lyr
+    }
+  }
+  
+  # Update layers list to match the valid layers plotted
+  layers <- valid_layers
+  
+  if (length(layer_dfs) == 0) {
+    stop("All specified layers failed to compile.")
   }
   
   # 3. Coordinate Normalization
