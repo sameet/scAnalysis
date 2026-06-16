@@ -90,6 +90,9 @@ list(
 )
 ```
 
+> [!IMPORTANT]
+> **SpatialCellChat Prerequisite**: Before plotting a `cellchat` layer, the `SpatialCellChat` analysis pipeline must have already been run on the object. This includes calling the communication probability calculation and the spatial communication field computation (`computeCommunField()`) for the specific `pathway` you wish to plot. Attempting to plot a pathway that has not been pre-computed in the `SpatialCellChat` object will cause the function to halt with an error.
+
 ---
 
 ## Styling & Saturation Tips
