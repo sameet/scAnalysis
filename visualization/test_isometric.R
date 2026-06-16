@@ -7,22 +7,30 @@ library(SpatialCellChat)
 
 message("=== STEP 1: Loading Datasets ===")
 seurat_path <- "/Users/sameet/Data/brain_data_analysis/spatial-data-analysis/data-board-spatial/all-4-brain-data/20251030T012536Z-88f14/all-4-brain-data.rds"
-cellchat_path <- "/Users/sameet/Data/brain_data_analysis/spatial-data-analysis/spatial-analysis-jun042026/spatial_cellchat_WT_2026-06-15/spatial_cellchat_object.rds"
+cellchat_wt_path <- "/Users/sameet/Data/brain_data_analysis/spatial-data-analysis/spatial-analysis-jun042026/spatial_cellchat_WT_2026-06-15/spatial_cellchat_object.rds"
+cellchat_ngd_path <- "/Users/sameet/Data/brain_data_analysis/spatial-data-analysis/spatial-analysis-jun042026/spatial_cellchat_nGD_2026-06-15/spatial_cellchat_object.rds"
 
 if (!file.exists(seurat_path)) {
   stop("Seurat RDS file not found!")
 }
-if (!file.exists(cellchat_path)) {
-  stop("SpatialCellChat RDS file not found!")
+if (!file.exists(cellchat_wt_path)) {
+  stop("WT SpatialCellChat RDS file not found!")
+}
+if (!file.exists(cellchat_ngd_path)) {
+  stop("nGD SpatialCellChat RDS file not found!")
 }
 
 message("Loading Seurat object...")
 x <- readRDS(seurat_path)
 print(x)
 
-message("Loading SpatialCellChat object...")
-chat_wt <- readRDS(cellchat_path)
+message("Loading WT SpatialCellChat object...")
+chat_wt <- readRDS(cellchat_wt_path)
 print(chat_wt)
+
+message("Loading nGD SpatialCellChat object...")
+chat_ngd <- readRDS(cellchat_ngd_path)
+print(chat_ngd)
 
 message("\n=== STEP 2: Running 2-Layer Plot (Seurat Genes) ===")
 # Layer 1: Gfap (Astrocyte marker)
@@ -141,6 +149,88 @@ p3b <- plot_isometric_spatial(
   filename_base = "test_3layer_spp1_complement"
 )
 message("SPP1 & Complement 3-Layer Plot completed successfully.")
+
+message("\n=== STEP 3c: Running User Requested nGD and WT Comparisons ===")
+# WT: seurat_clusters, SPP1 incoming, Gpnmb
+layers_wt_spp1_gpnmb <- list(
+  list(
+    type = "seurat",
+    seurat_obj = x,
+    feature = "seurat_clusters",
+    alpha = 0.35,
+    legend_title = "Seurat Clusters",
+    palette = "Set1"
+  ),
+  list(
+    type = "cellchat",
+    spatial_cellchat_obj = chat_wt,
+    pathway = "SPP1",
+    pattern = "incoming",
+    alpha = 0.4,
+    legend_title = "WT SPP1 Targets",
+    arrow_color = "blue",
+    arrow_scale_multiplier = 1.2
+  ),
+  list(
+    type = "seurat",
+    seurat_obj = x,
+    feature = "Gpnmb",
+    alpha = 0.5,
+    legend_title = "Gpnmb Expression",
+    palette = "viridis"
+  )
+)
+
+message("Plotting WT: Clusters, SPP1 Incoming, Gpnmb...")
+plot_isometric_spatial(
+  layers = layers_wt_spp1_gpnmb,
+  image = "WT",
+  z_step = 0.75,
+  point_size = 0.55,
+  output_dir = "test_plots",
+  filename_base = "test_3layer_wt_spp1_gpnmb"
+)
+
+# nGD: seurat_clusters, SPP1 incoming, Gpnmb
+layers_ngd_spp1_gpnmb <- list(
+  list(
+    type = "seurat",
+    seurat_obj = x,
+    feature = "seurat_clusters",
+    alpha = 0.35,
+    legend_title = "Seurat Clusters",
+    palette = "Set1"
+  ),
+  list(
+    type = "cellchat",
+    spatial_cellchat_obj = chat_ngd,
+    pathway = "SPP1",
+    pattern = "incoming",
+    alpha = 0.4,
+    legend_title = "nGD SPP1 Targets",
+    arrow_color = "blue",
+    arrow_scale_multiplier = 1.2
+  ),
+  list(
+    type = "seurat",
+    seurat_obj = x,
+    feature = "Gpnmb",
+    alpha = 0.5,
+    legend_title = "Gpnmb Expression",
+    palette = "viridis"
+  )
+)
+
+message("Plotting nGD: Clusters, SPP1 Incoming, Gpnmb...")
+plot_isometric_spatial(
+  layers = layers_ngd_spp1_gpnmb,
+  image = "nGD",
+  z_step = 0.75,
+  point_size = 0.55,
+  output_dir = "test_plots",
+  filename_base = "test_3layer_ngd_spp1_gpnmb"
+)
+message("WT and nGD 3-layer comparisons completed successfully.")
 
 message("\n=== STEP 4: Running Input Limit Validation ===")
 # Attempt to plot 4 layers to verify the limit validation works
