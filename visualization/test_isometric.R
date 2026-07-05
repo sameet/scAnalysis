@@ -232,6 +232,38 @@ plot_isometric_spatial(
 )
 message("WT and nGD 3-layer comparisons completed successfully.")
 
+message("\n=== STEP 3d: Running Scatter Pie Plot ===")
+# Example of using scatter pie for multiple genes
+layers_pie <- list(
+  list(
+    type = "scatterpie",
+    seurat_obj = x,
+    features = c("Gfap", "Lgals3", "Gpnmb"),
+    alpha = 0.8,
+    legend_title = "Marker Proportions",
+    palette = "Set1"
+  ),
+  list(
+    type = "seurat",
+    seurat_obj = x,
+    feature = "seurat_clusters",
+    alpha = 0.3,
+    legend_title = "Clusters",
+    palette = "Set3"
+  )
+)
+
+message("Plotting Scatter Pie + Clusters...")
+plot_isometric_spatial(
+  layers = layers_pie,
+  image = "WT",
+  z_step = 0.8,
+  point_size = 0.6,
+  output_dir = "test_plots",
+  filename_base = "test_scatterpie"
+)
+message("Scatter Pie Plot completed successfully.")
+
 message("\n=== STEP 4: Running Input Limit Validation ===")
 # Attempt to plot 4 layers to verify the limit validation works
 layers_4 <- list(

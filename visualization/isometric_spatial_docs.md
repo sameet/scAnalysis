@@ -11,6 +11,7 @@ Ensure the following R packages are installed and loaded in your environment:
 * `ggplot2`
 * `ggnewscale` (for independent scales and legends per layer)
 * `dplyr`
+* `scatterpie` (required for scatter pie layers)
 * `SpatialCellChat` (required for plotting communication fields)
 
 ---
@@ -76,7 +77,20 @@ list(
 )
 ```
 
-### 2. SpatialCellChat Field Layer (Communication Flow)
+### 2. Scatter Pie Layer (Cell Type Proportions or Multiple Genes)
+```R
+list(
+  type = "scatterpie",              # required
+  seurat_obj = x,                   # optional
+  features = c("Astro", "Micro"),   # required. Vector of features
+  alpha = 0.6,                      # numeric. Pie opacity
+  legend_title = "Cell Types",      # character. Custom legend title
+  palette = "Set2",                 # character or vector. Palette for pies
+  pie_radius = 0.01                 # optional. Manual radius for pies
+)
+```
+
+### 3. SpatialCellChat Field Layer (Communication Flow)
 ```R
 list(
   type = "cellchat",                # required

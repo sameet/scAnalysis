@@ -6,15 +6,17 @@ library(ggplot2)
 library(ggnewscale)
 library(dplyr)
 library(grid)
+library(scatterpie)
 
 #' Plot Multiple Spatial Transcriptomics Layers in Isometric 3D Stack
 #'
 #' @param seurat_obj Default Seurat object to use if layers don't specify their own.
 #' @param layers A list of layer definitions (maximum 3). Each layer is a list with:
-#'   - \code{type}: "seurat" (default) or "cellchat".
+#'   - \code{type}: "seurat" (default), "cellchat", or "scatterpie".
 #'   - \code{seurat_obj}: Seurat object (optional, defaults to main \code{seurat_obj}).
 #'   - \code{spatial_cellchat_obj}: SpatialCellChat object (required if type is "cellchat").
 #'   - \code{feature}: Feature to plot (gene name or metadata column for "seurat" type).
+#'   - \code{features}: Vector of features to plot (required for "scatterpie" type).
 #'   - \code{pathway}: Pathway name (required for "cellchat" type, e.g., "TGFb").
 #'   - \code{pattern}: "incoming" or "outgoing" (required for "cellchat" type).
 #'   - \code{assay}: Assay name (optional, defaults to DefaultAssay).
@@ -22,6 +24,7 @@ library(grid)
 #'   - \code{alpha}: Alpha transparency for the spots (default 0.8).
 #'   - \code{legend_title}: Custom title for the legend (defaults to Layer 1, Layer 2, etc.).
 #'   - \code{palette}: Custom color palette vector or predefined palette name.
+#'   - \code{pie_radius}: Manual radius for scatterpie (optional).
 #'   - \code{arrow_color}: Color for cellchat arrows. If NULL or "map", colors arrows by cell type (default). Otherwise, a static color string (e.g. "red", "black").
 #'   - \code{arrow_scale_multiplier}: Multiplier to adjust the auto-scaled length of communication field arrows (default 1.0).
 #' @param image Optional image FOV name to extract coordinates from (e.g., "WT"). If NULL, uses the first image or active FOV.
@@ -135,6 +138,57 @@ plot_isometric_spatial <- function(
           stringsAsFactors = FALSE
         )
         
+      } else if (lyr_type == "scatterpie") {
+        # Resolve Seurat object
+        obj <- lyr$seurat_obj
+        if (is.null(obj)) obj <- seurat_obj
+        if (is.null(obj)) {
+          stop(paste("Layer", i, "does not have a Seurat object specified and no default was provided."))
+        }
+
+        # Extract coordinates
+        if (!is.null(image)) {
+          coords <- Seurat::GetTissueCoordinates(obj, image = image)
+        } else {
+          coords <- Seurat::GetTissueCoordinates(obj)
+        }
+        coords <- as.data.frame(coords)
+
+        # Identify coordinate columns
+        col_names <- colnames(coords)
+        x_col <- if ("x" %in% col_names) "x" else if ("imagerow" %in% col_names) "imagerow" else "imagecol"
+        y_col <- if ("y" %in% col_names) "y" else if ("imagecol" %in% col_names) "imagecol" else "imagerow"
+
+        features <- lyr$features
+        if (is.null(features)) {
+          stop(paste("Layer", i, "is of type 'scatterpie' and must specify 'features'."))
+        }
+
+        # Extract values for all features
+        cells <- rownames(coords)
+        pie_data <- data.frame(
+          cell = cells,
+          x = coords[[x_col]],
+          y = coords[[y_col]],
+          stringsAsFactors = FALSE
+        )
+
+        for (feat in features) {
+          if (feat %in% colnames(obj@meta.data)) {
+            pie_data[[feat]] <- obj@meta.data[cells, feat]
+          } else {
+            assay_name <- ifelse(is.null(lyr$assay), DefaultAssay(obj), lyr$assay)
+            layer_name <- ifelse(is.null(lyr$layer), "data", lyr$layer)
+
+            exp_data <- GetAssayData(obj, assay = assay_name, layer = layer_name)
+            if (!feat %in% rownames(exp_data)) {
+              stop(paste("Feature", feat, "not found in metadata or assay", assay_name))
+            }
+            pie_data[[feat]] <- as.numeric(exp_data[feat, cells])
+          }
+        }
+        pie_data
+
       } else if (lyr_type == "cellchat") {
         chat <- lyr$spatial_cellchat_obj
         if (is.null(chat)) {
@@ -374,60 +428,90 @@ plot_isometric_spatial <- function(
     # Trigger ggnewscale for subsequent layers
     if (i > 1) {
       p <- p + ggnewscale::new_scale_color()
+      p <- p + ggnewscale::new_scale_fill()
     }
     
-    # Determine color scale mapping
-    is_continuous <- is.numeric(df$value)
-    
-    # Draw spots
-    p <- p + geom_point(
-      data = df,
-      aes(x = x_proj, y = y_proj, color = value),
-      alpha = lyr_alpha,
-      size = point_size
-    )
-    
-    # Apply color scale
-    if (is_continuous) {
-      # Setup continuous color scale
+    if (lyr_type == "scatterpie") {
+      features <- lyr$features
+      
+      # Determine radius
+      r_val <- if (!is.null(lyr$pie_radius)) lyr$pie_radius else (point_size / 80)
+      
+      # Draw scatterpie
+      p <- p + scatterpie::geom_scatterpie(
+        data = df,
+        aes(x = x_proj, y = y_proj, group = cell),
+        cols = features,
+        color = NA,
+        alpha = lyr_alpha,
+        r = r_val
+      )
+      
+      # Setup fill scale
       pal <- lyr$palette
       if (is.null(pal)) {
-        # Default distinct continuous palettes per layer
-        pal_options <- list(
-          c("#440154", "#21908C", "#FDE725"), # Viridis
-          c("#0B0010", "#7C1D6F", "#FCA50A"), # Inferno / Magma
-          c("#03051A", "#3B4CC0", "#B40426")  # Blue-to-Red
-        )
-        pal <- pal_options[[((i - 1) %% 3) + 1]]
-      }
-      
-      # Define colorbar guide (no override.aes needed, colorbar is opaque by default)
-      guide_opt <- guide_colorbar(title = leg_title)
-      
-      if (length(pal) == 1 && is.character(pal)) {
-        p <- p + scale_color_viridis_c(option = pal, name = leg_title, guide = guide_opt)
-      } else {
-        p <- p + scale_color_gradientn(colors = pal, name = leg_title, guide = guide_opt)
-      }
-      
-    } else {
-      # Setup discrete/categorical color scale
-      df$value <- as.factor(df$value)
-      levels_value <- levels(df$value)
-      
-      pal <- lyr$palette
-      if (is.null(pal)) {
-        # Auto distinct qualitative colors
-        pal <- scales::hue_pal()(length(levels_value))
+        pal <- scales::hue_pal()(length(features))
       } else if (length(pal) == 1 && is.character(pal)) {
-        # Preset RColorBrewer palette name
-        pal <- colorRampPalette(RColorBrewer::brewer.pal(9, pal))(length(levels_value))
+        pal <- colorRampPalette(RColorBrewer::brewer.pal(9, pal))(length(features))
       }
       
-      # Define legend guide with override.aes to force full saturation and size 3
-      guide_opt <- guide_legend(title = leg_title, override.aes = list(alpha = 1.0, size = 3.0))
+      guide_opt <- guide_legend(title = leg_title, override.aes = list(alpha = 1.0))
+      p <- p + scale_fill_manual(values = pal, name = leg_title, guide = guide_opt)
+
+    } else {
+      # Determine color scale mapping
+      is_continuous <- is.numeric(df$value)
+
+      # Draw spots
+      p <- p + geom_point(
+        data = df,
+        aes(x = x_proj, y = y_proj, color = value),
+        alpha = lyr_alpha,
+        size = point_size
+      )
       
-      p <- p + scale_color_manual(values = pal, name = leg_title, guide = guide_opt)
+      # Apply color scale
+      if (is_continuous) {
+        # Setup continuous color scale
+        pal <- lyr$palette
+        if (is.null(pal)) {
+          # Default distinct continuous palettes per layer
+          pal_options <- list(
+            c("#440154", "#21908C", "#FDE725"), # Viridis
+            c("#0B0010", "#7C1D6F", "#FCA50A"), # Inferno / Magma
+            c("#03051A", "#3B4CC0", "#B40426")  # Blue-to-Red
+          )
+          pal <- pal_options[[((i - 1) %% 3) + 1]]
+        }
+
+        # Define colorbar guide (no override.aes needed, colorbar is opaque by default)
+        guide_opt <- guide_colorbar(title = leg_title)
+
+        if (length(pal) == 1 && is.character(pal)) {
+          p <- p + scale_color_viridis_c(option = pal, name = leg_title, guide = guide_opt)
+        } else {
+          p <- p + scale_color_gradientn(colors = pal, name = leg_title, guide = guide_opt)
+        }
+
+      } else {
+        # Setup discrete/categorical color scale
+        df$value <- as.factor(df$value)
+        levels_value <- levels(df$value)
+
+        pal <- lyr$palette
+        if (is.null(pal)) {
+          # Auto distinct qualitative colors
+          pal <- scales::hue_pal()(length(levels_value))
+        } else if (length(pal) == 1 && is.character(pal)) {
+          # Preset RColorBrewer palette name
+          pal <- colorRampPalette(RColorBrewer::brewer.pal(9, pal))(length(levels_value))
+        }
+
+        # Define legend guide with override.aes to force full saturation and size 3
+        guide_opt <- guide_legend(title = leg_title, override.aes = list(alpha = 1.0, size = 3.0))
+
+        p <- p + scale_color_manual(values = pal, name = leg_title, guide = guide_opt)
+      }
     }
     
     # Draw communication field arrows if CellChat type
