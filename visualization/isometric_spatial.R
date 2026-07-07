@@ -412,7 +412,9 @@ plot_isometric_spatial <- function(
       
     } else {
       # Setup discrete/categorical color scale
-      df$value <- as.factor(df$value)
+      if (!is.factor(df$value)) {
+        df$value <- as.factor(df$value)
+      }
       levels_value <- levels(df$value)
       
       pal <- lyr$palette
@@ -427,7 +429,7 @@ plot_isometric_spatial <- function(
       # Define legend guide with override.aes to force full saturation and size 3
       guide_opt <- guide_legend(title = leg_title, override.aes = list(alpha = 1.0, size = 3.0))
       
-      p <- p + scale_color_manual(values = pal, name = leg_title, guide = guide_opt)
+      p <- p + scale_color_manual(values = pal, name = leg_title, guide = guide_opt, drop = FALSE)
     }
     
     # Draw communication field arrows if CellChat type
